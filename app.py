@@ -1,24 +1,20 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
 import os
 
-# Set page configuration for a professional look
+# --- Page Configuration ---
 st.set_page_config(
-    page_title="Mental Health in Tech EDA",
+    page_title="Tech Mental Health Dashboard",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Apply seaborn theme matching the notebook
-sns.set_theme(style="whitegrid")
-
+# --- Data Loading & Cleaning ---
 @st.cache_data
 def load_and_clean_data(file):
-    """Loads and cleans the dataset based on the EDA notebook."""
     df = pd.read_csv(file)
     
     # 1. Remove duplicates
@@ -41,12 +37,9 @@ def load_and_clean_data(file):
         female_terms = ['female', 'f', 'woman']
         
         def clean_gender(x):
-            if x in male_terms:
-                return 'Male'
-            elif x in female_terms:
-                return 'Female'
-            else:
-                return 'Other'
+            if x in male_terms: return 'Male'
+            elif x in female_terms: return 'Female'
+            else: return 'Other'
                 
         df['Gender'] = df['Gender'].apply(clean_gender)
         df = df[df["Gender"] != "Other"]
@@ -57,11 +50,9 @@ def load_and_clean_data(file):
         
     return df
 
-# --- Sidebar Navigation & Data Upload ---
-st.sidebar.title("Navigation")
-st.sidebar.markdown("Upload your data and navigate through the analysis.")
+# --- Sidebar: File Upload & Filters ---
+st.sidebar.title("🧠 Settings & Filters")
 
-# File uploader (looks for local clean_mental_health_data.csv first for convenience)
 uploaded_file = st.sidebar.file_uploader("Upload 'clean_mental_health_data.csv'", type=["csv"])
 local_file = "clean_mental_health_data.csv"
 
@@ -70,149 +61,168 @@ if uploaded_file is not None:
 elif os.path.exists(local_file):
     df = load_and_clean_data(local_file)
 else:
-    st.warning("⚠️ Please upload the 'clean_mental_health_data.csv' file in the sidebar to proceed.")
+    st.warning("⚠️ Please upload your 'clean_mental_health_data.csv' dataset in the sidebar to begin.")
     st.stop()
 
-# Navigation options
-page = st.sidebar.radio("Select a section:", [
-    "1. Overview & Raw Data", 
-    "2. Demographics", 
-    "3. Workplace Factors", 
-    "4. Health Stigma Analysis"
+st.sidebar.markdown("---")
+st.sidebar.subheader("Filter Data")
+
+# Dynamic Filters
+selected_gender = st.sidebar.multiselect("Gender", options=df['Gender'].unique(), default=df['Gender'].unique())
+selected_tech = st.sidebar.multiselect("Is a Tech Company?", options=df['tech_company'].unique(), default=df['tech_company'].unique())
+selected_remote = st.sidebar.multiselect("Remote Work?", options=df['remote_work'].unique(), default=df['remote_work'].unique())
+
+# Apply Filters
+filtered_df = df[
+    (df['Gender'].isin(selected_gender)) & 
+    (df['tech_company'].isin(selected_tech)) & 
+    (df['remote_work'].isin(selected_remote))
+]
+
+# --- Main Dashboard Header ---
+st.title("Mental Health in the Tech Workplace")
+st.markdown("Explore how mental health is perceived, supported, and stigmatized in the tech industry.")
+
+# --- KPI Metrics Row ---
+col1, col2, col3, col4 = st.columns(4)
+total_respondents = len(filtered_df)
+pct_treatment = (filtered_df['treatment'] == 'Yes').mean() * 100 if total_respondents > 0 else 0
+avg_age = filtered_df['Age'].mean() if total_respondents > 0 else 0
+
+col1.metric("Total Respondents", f"{total_respondents:,}")
+col2.metric("Sought Treatment", f"{pct_treatment:.1f}%")
+col3.metric("Average Age", f"{avg_age:.1f} yrs")
+col4.metric("Companies represented", filtered_df['no_employees'].nunique(), "Size categories")
+
+st.markdown("---")
+
+# --- Interactive Tabs ---
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📊 Demographics", 
+    "🏢 Workplace Factors", 
+    "⚖️ Mental vs Physical Stigma", 
+    "📁 Raw Data"
 ])
 
-st.sidebar.markdown("---")
-st.sidebar.info("Data source: OSMI Mental Health in Tech Survey")
+# Define consistent color mapping for Treatment
+treatment_colors = {"Yes": "#EF553B", "No": "#636EFA"}
 
-# --- App Content ---
-st.title("Mental Health in the Workplace: Tech Industry")
-st.markdown("This dashboard explores the intersection of mental health and the workplace within the tech industry, quantifying how mental health issues are perceived, treated, and supported in professional environments.")
+with tab1:
+    st.header("Demographics Overview")
+    
+    col_a, col_b = st.columns([2, 1])
+    
+    with col_a:
+        # Interactive Histogram with marginal boxplot
+        fig_age = px.histogram(
+            filtered_df, x="Age", color="treatment", 
+            marginal="box", # Adds a boxplot above the histogram
+            nbins=30, 
+            color_discrete_map=treatment_colors,
+            title="Age Distribution by Treatment Status",
+            opacity=0.8
+        )
+        st.plotly_chart(fig_age, use_container_width=True)
 
-if page == "1. Overview & Raw Data":
-    st.header("1. Dataset Overview")
-    st.markdown("After applying the standard cleaning procedures (removing duplicates, handling missing values, and standardizing text inputs), here is the resulting structured dataset.")
-    
-    st.write(f"**Cleaned Dataset Shape:** {df.shape[0]} rows and {df.shape[1]} columns.")
-    st.dataframe(df.head(15), use_container_width=True)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Summary Statistics (Numerical)")
-        st.dataframe(df.describe())
-    with col2:
-        st.subheader("Missing Values")
-        st.dataframe(df.isnull().sum().rename("Missing Count"))
+    with col_b:
+        # Interactive Donut Chart
+        gender_counts = filtered_df['Gender'].value_counts().reset_index()
+        gender_counts.columns = ['Gender', 'Count']
+        fig_gender = px.pie(
+            gender_counts, names='Gender', values='Count', 
+            hole=0.4, title="Gender Breakdown",
+            color_discrete_sequence=px.colors.qualitative.Pastel
+        )
+        fig_gender.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(fig_gender, use_container_width=True)
 
-elif page == "2. Demographics":
-    st.header("2. Demographics & Treatment Status")
+with tab2:
+    st.header("How Workplace Factors Influence Treatment")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Distribution of Age")
-        fig1, ax1 = plt.subplots(figsize=(8, 5))
-        sns.histplot(df['Age'], bins=30, kde=True, color='skyblue', ax=ax1)
-        ax1.set_title('Distribution of Age', fontsize=12)
-        ax1.set_xlabel('Age')
-        ax1.set_ylabel('Frequency')
-        st.pyplot(fig1)
+    # Pre-calculate numeric mapping for correlation
+    corr_df = filtered_df.copy()
+    corr_df['treatment_num'] = corr_df['treatment'].map({'Yes': 1, 'No': 0})
+    corr_df['family_history_num'] = corr_df['family_history'].map({'Yes': 1, 'No': 0})
+    corr_df['remote_work_num'] = corr_df['remote_work'].map({'Yes': 1, 'No': 0})
+    corr_matrix = corr_df[['Age', 'treatment_num', 'family_history_num', 'remote_work_num']].corr()
 
-    with col2:
-        st.subheader("Treatment Seeking Overall")
-        fig2, ax2 = plt.subplots(figsize=(8, 5))
-        sns.countplot(data=df, x='treatment', hue='treatment', legend=False, ax=ax2, palette="muted")
-        ax2.set_title('Count of Individuals Seeking Treatment', fontsize=12)
-        ax2.set_xlabel('Sought Treatment?')
-        ax2.set_ylabel('Count')
-        st.pyplot(fig2)
+    col_c, col_d = st.columns([1, 2])
+    
+    with col_c:
+        # Interactive Heatmap
+        fig_corr = px.imshow(
+            corr_matrix, 
+            text_auto=".2f", 
+            color_continuous_scale="RdBu_r",
+            title="Feature Correlation"
+        )
+        st.plotly_chart(fig_corr, use_container_width=True)
+
+    with col_d:
+        # Grouped bar chart for benefits
+        cat_orders = {"benefits": ["Yes", "Don't know", "No"], "anonymity": ["Yes", "Don't know", "No"]}
         
-    st.markdown("---")
-    
-    col3, col4 = st.columns(2)
-    with col3:
-        st.subheader("Age by Treatment Status")
-        fig3, ax3 = plt.subplots(figsize=(8, 5))
-        sns.boxplot(data=df, x='treatment', y='Age', hue='treatment', palette='Set3', legend=False, ax=ax3)
-        ax3.set_title('Age Distribution by Treatment Status', fontsize=12)
-        ax3.set_xlabel('Sought Treatment?')
-        st.pyplot(fig3)
-        
-    with col4:
-        st.subheader("Treatment by Gender")
-        fig4, ax4 = plt.subplots(figsize=(8, 5))
-        sns.countplot(data=df, x='Gender', hue='treatment', palette="Set2", ax=ax4)
-        ax4.set_title('Treatment Seeking Behavior by Gender', fontsize=12)
-        ax4.legend(title='Sought Treatment')
-        st.pyplot(fig4)
+        fig_benefits = px.histogram(
+            filtered_df, x="benefits", color="treatment", 
+            barmode="group", category_orders=cat_orders,
+            color_discrete_map=treatment_colors,
+            title="Impact of Mental Health Benefits on Seeking Treatment",
+            labels={"benefits": "Does employer provide mental health benefits?"}
+        )
+        st.plotly_chart(fig_benefits, use_container_width=True)
 
-elif page == "3. Workplace Factors":
-    st.header("3. How Workplace Factors Influence Treatment")
-    st.markdown("We look at how employer-provided benefits and anonymity affect an employee's decision to seek mental health treatment.")
+    # Anonymity impact
+    fig_anon = px.histogram(
+        filtered_df, x="anonymity", color="treatment", 
+        barmode="group", category_orders=cat_orders,
+        color_discrete_map=treatment_colors,
+        title="Impact of Anonymity Protection on Seeking Treatment",
+        labels={"anonymity": "Is anonymity protected?"}
+    )
+    st.plotly_chart(fig_anon, use_container_width=True)
     
-    # Heatmap first
-    st.subheader("Feature Correlation Heatmap")
-    df_corr = df.copy()
-    df_corr['treatment_num'] = df_corr['treatment'].map({'Yes': 1, 'No': 0})
-    df_corr['family_history_num'] = df_corr['family_history'].map({'Yes': 1, 'No': 0})
-    df_corr['remote_work_num'] = df_corr['remote_work'].map({'Yes': 1, 'No': 0})
-    
-    fig_corr, ax_corr = plt.subplots(figsize=(8, 4))
-    corr = df_corr[['Age', 'treatment_num', 'family_history_num', 'remote_work_num']].corr()
-    sns.heatmap(corr, annot=True, cmap='Reds', fmt=".2f", linewidths=0.5, ax=ax_corr)
-    st.pyplot(fig_corr)
-    
-    st.markdown("---")
-    
-    order = ['Yes', "Don't know", 'No']
-    y_limit = (0, 450)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        fig1, ax1 = plt.subplots(figsize=(8, 5))
-        sns.countplot(data=df, x='benefits', hue='treatment', palette='Set2', order=order, ax=ax1)
-        ax1.set_title('Impact of Mental Health Benefits on Seeking Treatment')
-        ax1.set_xlabel('Does your employer provide mental health benefits?')
-        ax1.set_ylabel('Count')
-        ax1.set_ylim(y_limit)
-        ax1.legend(title='Sought Treatment', loc='upper right')
-        st.pyplot(fig1)
-        
-    with col2:
-        fig2, ax2 = plt.subplots(figsize=(8, 5))
-        sns.countplot(data=df, x='anonymity', hue='treatment', palette='Set1', order=order, ax=ax2)
-        ax2.set_title('Impact of Anonymity on Seeking Treatment')
-        ax2.set_xlabel('Is anonymity protected?')
-        ax2.set_ylabel('Count')
-        ax2.set_ylim(y_limit)
-        ax2.legend(title='Sought Treatment', loc='upper right')
-        st.pyplot(fig2)
-        
-    st.success("**Insight:** Employees who know their company provides mental health benefits, guarantees anonymity, and offers easy medical leave are significantly more likely to seek treatment. Interestingly, a large portion of employees answer 'Not sure' to these questions, and this group tends to have lower treatment rates. This highlights that communicating benefits is just as important as having them.")
+    st.info("💡 **Insight:** Employees who know their company provides benefits and protects anonymity are significantly more likely to seek treatment. Note the large 'Don't know' groups—communicating benefits is just as important as having them.")
 
-elif page == "4. Health Stigma Analysis":
-    st.header("4. Mental vs. Physical Health Stigma")
-    st.markdown("Does discussing mental health at work carry greater perceived negative consequences than discussing physical health?")
+with tab3:
+    st.header("Comparing Mental vs. Physical Health Stigma")
+    st.markdown("Would discussing these health issues with an employer have negative consequences?")
     
-    order = ['Yes', 'No', 'Maybe']
+    col_e, col_f = st.columns(2)
+    stigma_order = {"mental_health_consequence": ["Yes", "Maybe", "No"], "phys_health_consequence": ["Yes", "Maybe", "No"]}
+    stigma_colors = {"Yes": "#EF553B", "Maybe": "#FFA15A", "No": "#00CC96"}
+
+    with col_e:
+        fig_mental = px.histogram(
+            filtered_df, x="mental_health_consequence", color="mental_health_consequence",
+            category_orders=stigma_order, color_discrete_map=stigma_colors,
+            title="Mental Health Consequences",
+            labels={"mental_health_consequence": "Negative Consequences?"}
+        )
+        fig_mental.update_layout(showlegend=False)
+        st.plotly_chart(fig_mental, use_container_width=True)
+
+    with col_f:
+        fig_phys = px.histogram(
+            filtered_df, x="phys_health_consequence", color="phys_health_consequence",
+            category_orders=stigma_order, color_discrete_map=stigma_colors,
+            title="Physical Health Consequences",
+            labels={"phys_health_consequence": "Negative Consequences?"}
+        )
+        fig_phys.update_layout(showlegend=False)
+        st.plotly_chart(fig_phys, use_container_width=True)
+        
+    st.error("🚨 **Insight:** There is a stark contrast here. Most respondents feel that discussing *physical* health carries 'No' negative consequence. However, when it comes to *mental* health, the sentiment shifts heavily toward 'Maybe' or 'Yes', indicating a lingering workplace stigma.")
+
+with tab4:
+    st.header("Filtered Dataset View")
+    st.markdown("View and download the data based on your current sidebar filter selections.")
+    st.dataframe(filtered_df, use_container_width=True)
     
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    # Mental Health Consequences
-    sns.countplot(data=df, x='mental_health_consequence', hue='mental_health_consequence', palette='Reds', order=order, legend=False, ax=axes[0])
-    axes[0].set_title('Perceived Negative Consequence: Mental Health')
-    axes[0].set_xlabel('Would discussing it have negative consequences?')
-    axes[0].set_ylabel('Count')
-    axes[0].set_ylim(0, 900)
-    
-    # Physical Health Consequences
-    sns.countplot(data=df, x='phys_health_consequence', hue='phys_health_consequence', palette='Blues', order=order, legend=False, ax=axes[1])
-    axes[1].set_title('Perceived Negative Consequence: Physical Health')
-    axes[1].set_xlabel('Would discussing it have negative consequences?')
-    axes[1].set_ylabel('Count')
-    axes[1].set_ylim(0, 900)
-    
-    plt.tight_layout()
-    st.pyplot(fig)
-    
-    st.error("**Insight:** Yes, absolutely. This is usually the most striking finding in this dataset. When comparing mental health consequences to physical health consequences, the vast majority of respondents feel that discussing physical health has 'No' negative consequences. However, when asked about mental health, the responses heavily shift toward 'Maybe' and 'Yes.'")
+    # Download button for the filtered data
+    csv = filtered_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Filtered Data as CSV",
+        data=csv,
+        file_name='filtered_mental_health_clean_mental_health_data.csv',
+        mime='text/csv',
+    )
