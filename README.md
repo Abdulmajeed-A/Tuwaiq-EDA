@@ -51,11 +51,6 @@ Based on the research questions posed in the analysis, we discovered the followi
 **2. Does discussing mental health at work carry greater perceived negative consequences than discussing physical health?**
 > **Insight:** Absolutely. The data reveals a striking disparity. When asked about physical health, the vast majority of respondents feel there are **"No"** negative consequences to discussing it with an employer. However, when asked the same question about mental health, responses shift heavily toward **"Maybe"** and **"Yes,"** indicating a strong lingering stigma around mental health in the tech industry.
 
-## 🛠️ Technologies Used
-* **Language:** Python
-* **Data Manipulation:** `pandas`, `numpy`
-* **Data Visualization:** `matplotlib`, `seaborn`
-* **Dataset Import:** `kagglehub`
 
 ## 🚀 How to Run the Project Locally
 
