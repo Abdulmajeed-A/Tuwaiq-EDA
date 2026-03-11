@@ -211,7 +211,7 @@ with tab3:
         fig_phys.update_layout(showlegend=False)
         st.plotly_chart(fig_phys, use_container_width=True)
         
-    st.error("🚨 **Insight:** There is a stark contrast here. Most respondents feel that discussing *physical* health carries 'No' negative consequence. However, when it comes to *mental* health, the sentiment shifts heavily toward 'Maybe' or 'Yes', indicating a lingering workplace stigma.")
+    st.info("🚨 **Insight:** There is a stark contrast here. Most respondents feel that discussing *physical* health carries 'No' negative consequence. However, when it comes to *mental* health, the sentiment shifts heavily toward 'Maybe' or 'Yes', indicating a lingering workplace stigma.")
 
 with tab4:
     st.header("Filtered Dataset View")
