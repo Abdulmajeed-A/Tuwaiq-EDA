@@ -61,16 +61,16 @@ def load_and_clean_data(file):
 st.sidebar.title("Navigation")
 st.sidebar.markdown("Upload your data and navigate through the analysis.")
 
-# File uploader (looks for local survey.csv first for convenience)
-uploaded_file = st.sidebar.file_uploader("Upload 'survey.csv'", type=["csv"])
-local_file = "survey.csv"
+# File uploader (looks for local clean_mental_health_data.csv first for convenience)
+uploaded_file = st.sidebar.file_uploader("Upload 'clean_mental_health_data.csv'", type=["csv"])
+local_file = "clean_mental_health_data.csv"
 
 if uploaded_file is not None:
     df = load_and_clean_data(uploaded_file)
 elif os.path.exists(local_file):
     df = load_and_clean_data(local_file)
 else:
-    st.warning("⚠️ Please upload the 'survey.csv' file in the sidebar to proceed.")
+    st.warning("⚠️ Please upload the 'clean_mental_health_data.csv' file in the sidebar to proceed.")
     st.stop()
 
 # Navigation options
